@@ -6,6 +6,7 @@ public class BarberoDormilon {
     static Semaphore sillasDisponibles = new Semaphore(3); // 3 sillas en la sala de espera
     static Semaphore barbero = new Semaphore(0); // Barbero comienza dormido
     static Semaphore sillaBarbero = new Semaphore(1); // Solo un cliente puede estar en la silla del barbero
+    static int contadorEsperasSinClientes = 0; // Contador de esperas sin clientes
 
     static class Cliente implements Runnable {
         @Override
@@ -13,6 +14,7 @@ public class BarberoDormilon {
             try {
                 if (sillasDisponibles.tryAcquire()) {
                     System.out.println(Thread.currentThread().getName() + " se sienta en la sala de espera.");
+                    contadorEsperasSinClientes = 0; // Resetea el contador cuando llega un cliente
                     barbero.release(); // Despierta al barbero
                     sillaBarbero.acquire(); // Espera a ser atendido
                     System.out.println(Thread.currentThread().getName() + " está siendo atendido.");
@@ -30,11 +32,22 @@ public class BarberoDormilon {
         public void run() {
             try {
                 while (true) {
-                    barbero.acquire(); // Espera a que un cliente lo despierte
-                    System.out.println("Barbero atiende a un cliente.");
-                    Thread.sleep(2000); // Tiempo de corte
-                    sillaBarbero.release(); // Termina el corte
-                    sillasDisponibles.release(); // Libera una silla de espera
+                    if (!barbero.tryAcquire()) { // Si no hay clientes para atender
+                        contadorEsperasSinClientes++;
+                        System.out.println("Barbero espera sin clientes (" + contadorEsperasSinClientes + " vez).");
+
+                        if (contadorEsperasSinClientes >= 2) {
+                            System.out.println("La barbería se cierra por falta de clientes.");
+                            break;
+                        }
+                        Thread.sleep(2000); // Espera antes de intentar de nuevo
+                    } else {
+                        contadorEsperasSinClientes = 0; // Resetea el contador cuando atiende a un cliente
+                        System.out.println("Barbero atiende a un cliente.");
+                        Thread.sleep(2000); // Tiempo de corte
+                        sillaBarbero.release(); // Termina el corte
+                        sillasDisponibles.release(); // Libera una silla de espera
+                    }
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
